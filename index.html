@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yahtzee — 3 Players</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --felt-dark:#132B22;
+    --felt:#1D4535;
+    --felt-light:#2A5B47;
+    --cream:#F1E7CC;
+    --cream-dim:#E4D6B4;
+    --wood:#4A2F20;
+    --wood-light:#6E4A32;
+    --brass:#C6A15B;
+    --brass-bright:#E0BE7C;
+    --ink:#241C13;
+    --accent-red:#9B4030;
+    --line: rgba(74,47,32,0.35);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:'IBM Plex Sans', sans-serif;
+    color:var(--cream);
+    background:
+      radial-gradient(ellipse at top, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    min-height:100vh;
+    padding:28px 20px 60px;
+  }
+  h1,h2,.display{ font-family:'Fraunces', serif; }
+  button{ font-family:inherit; }
+  button:focus-visible, [tabindex]:focus-visible{
+    outline: 3px solid var(--brass-bright);
+    outline-offset: 2px;
+  }
+
+  #app{ max-width:980px; margin:0 auto; }
+
+  header{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    flex-wrap:wrap; gap:14px;
+    padding-bottom:18px; margin-bottom:22px;
+    border-bottom:1px solid rgba(241,231,204,0.18);
+  }
+  header .title{
+    font-size:2.6rem; font-weight:650; letter-spacing:0.01em;
+    color:var(--cream); line-height:1;
+  }
+  header .subtitle{
+    font-size:0.95rem; color:var(--brass-bright); margin-top:6px;
+    font-style:italic; font-family:'Fraunces', serif;
+  }
+  #new-game-btn{
+    background:transparent; color:var(--cream-dim);
+    border:1px solid rgba(241,231,204,0.35); border-radius:4px;
+    padding:9px 16px; font-size:0.85rem; cursor:pointer;
+    transition:border-color 0.15s, color 0.15s;
+  }
+  #new-game-btn:hover{ border-color:var(--brass-bright); color:var(--brass-bright); }
+
+  main{ display:flex; flex-direction:column; gap:20px; }
+
+  /* ---- Dice panel ---- */
+  .dice-panel{
+    width:100%;
+    background:var(--wood);
+    border:1px solid var(--wood-light);
+    border-radius:8px;
+    padding:20px 24px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:24px; flex-wrap:wrap;
+  }
+  .dice-info{ flex:1 1 200px; min-width:180px; }
+  .dice-controls{ flex:0 0 auto; display:flex; flex-direction:column; align-items:stretch; gap:10px; min-width:170px; }
+  .turn-indicator{
+    font-family:'Fraunces', serif; font-size:1.2rem; font-weight:650;
+    margin-bottom:4px; color:var(--brass-bright);
+  }
+  .turn-hint{ font-size:0.82rem; color:var(--cream-dim); }
+
+  .rolls-left{ font-size:0.82rem; color:var(--cream-dim); }
+  .rolls-left strong{ color:var(--brass-bright); }
+
+  .dice-tray{
+    display:grid; grid-template-columns:repeat(5,56px); gap:8px;
+    flex:0 0 auto;
+  }
+  .die{
+    width:56px; height:56px; background:var(--cream);
+    border:2px solid var(--wood-light); border-radius:8px;
+    cursor:not-allowed; padding:0;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+    opacity:0.55;
+  }
+  .die.active{ cursor:pointer; opacity:1; }
+  .die.active:hover{ transform:translateY(-2px); }
+  .die.held{
+    background:var(--brass);
+    box-shadow:0 0 0 2px var(--brass-bright), 0 4px 10px rgba(0,0,0,0.35);
+    transform:translateY(-4px);
+  }
+  .die svg{ width:78%; height:78%; }
+  .die circle{ fill:var(--ink); }
+  @media (prefers-reduced-motion: reduce){
+    .die{ transition:none; }
+    .die.rolling{ animation:none !important; }
+  }
+  .die.rolling{ animation:tumble 0.55s ease-in-out; }
+  @keyframes tumble{
+    0%{ transform:rotate(0deg) scale(1); }
+    18%{ transform:rotate(-18deg) scale(1.08); }
+    36%{ transform:rotate(14deg) scale(0.94); }
+    54%{ transform:rotate(-11deg) scale(1.06); }
+    72%{ transform:rotate(7deg) scale(0.97); }
+    88%{ transform:rotate(-3deg) scale(1.02); }
+    100%{ transform:rotate(0deg) scale(1); }
+  }
+
+  .sound-toggle{
+    background:transparent; border:1px solid rgba(241,231,204,0.25); border-radius:5px;
+    cursor:pointer; color:var(--cream-dim); font-size:1rem; line-height:1;
+    padding:6px 9px; opacity:0.85; transition:opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+  .sound-toggle:hover{ opacity:1; color:var(--brass-bright); border-color:var(--brass-bright); }
+
+  .controls-top-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+  #roll-btn{
+    width:100%; padding:13px; font-size:1rem; font-weight:600;
+    background:var(--brass); color:var(--ink); border:none; border-radius:5px;
+    cursor:pointer; transition:background 0.15s ease;
+  }
+  #roll-btn:hover:not(:disabled){ background:var(--brass-bright); }
+  #roll-btn:disabled{ background:rgba(198,161,91,0.3); color:rgba(36,28,19,0.5); cursor:not-allowed; }
+
+  .score-prompt{
+    font-size:0.82rem; color:var(--accent-red);
+    background:rgba(155,64,48,0.15); border:1px solid rgba(155,64,48,0.4);
+    padding:8px 10px; border-radius:4px; display:none;
+  }
+  .score-prompt.show{ display:block; }
+
+  /* ---- Scorecard ---- */
+  .scorecard-wrap{
+    flex:1 1 460px; min-width:320px;
+    background:var(--cream); color:var(--ink);
+    border:1px solid var(--wood-light); border-radius:8px;
+    overflow:hidden;
+  }
+  table{ width:100%; border-collapse:collapse; font-size:0.88rem; }
+  thead th{
+    text-align:left; padding:10px 8px;
+    background:var(--wood); color:var(--cream);
+    font-weight:600; font-size:0.8rem;
+    border-bottom:2px solid var(--wood-light);
+  }
+  thead th.cat-col{ width:38%; }
+  thead input{
+    width:90%; background:transparent; border:none; border-bottom:1px solid rgba(241,231,204,0.4);
+    color:var(--cream); font-family:'Fraunces', serif; font-weight:600; font-size:0.95rem;
+    padding:2px 0;
+  }
+  thead input:focus{ outline:none; border-bottom-color:var(--brass-bright); }
+  thead th.active-player{ background:var(--felt); }
+
+  tbody td, tbody th{ padding:8px 8px; border-bottom:1px solid var(--line); }
+  tbody th{
+    text-align:left; font-weight:500; color:var(--ink);
+  }
+  tbody th .cap{ display:block; font-size:0.72rem; color:#7a6a52; font-weight:400; margin-top:1px; }
+  tbody td{ text-align:center; font-variant-numeric:tabular-nums; }
+
+  tr.section-sub th, tr.section-sub td{
+    background:rgba(74,47,32,0.08); font-weight:600; font-size:0.82rem;
+  }
+  tr.grand-total th, tr.grand-total td{
+    background:var(--wood); color:var(--cream); font-weight:700; font-size:1rem;
+    border-bottom:none;
+  }
+
+
+  /* ---- Mobile two-column scorecard ---- */
+  .mobile-scorecard{ display:none; }
+
+  @media (max-width:720px){
+    body{ padding:12px 8px 30px; }
+    #app{ width:100%; }
+    header{ padding:4px 4px 12px; margin-bottom:12px; }
+    header .title{ font-size:1.85rem; }
+    header .subtitle{ font-size:.78rem; }
+
+    .dice-panel{
+      padding:12px;
+      gap:10px;
+      border-radius:7px;
+    }
+    .dice-info{ min-width:0; }
+    .turn-indicator{ font-size:1rem; }
+    .turn-hint{ font-size:.72rem; }
+    .dice-tray{ width:100%; gap:5px; }
+    .die{ width:100%; height:auto; aspect-ratio:1; border-radius:6px; }
+    .dice-controls{ width:100%; }
+    #roll-btn{ padding:11px; }
+
+    .desktop-scorecard{ display:none; }
+    .mobile-scorecard{
+      display:block;
+      background:var(--cream);
+      color:var(--ink);
+    }
+    .mobile-player-head{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      background:var(--wood);
+      border-bottom:2px solid var(--wood-light);
+    }
+    .mobile-player-head input{
+      width:100%;
+      min-width:0;
+      padding:10px 4px;
+      text-align:center;
+      background:transparent;
+      border:0;
+      border-right:1px solid rgba(241,231,204,.2);
+      color:var(--cream);
+      font-family:'Fraunces',serif;
+      font-weight:600;
+      font-size:.78rem;
+    }
+    .mobile-player-head input:focus{
+      outline:none;
+      background:var(--felt);
+    }
+
+    .mobile-category-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:0;
+    }
+    .mobile-category{
+      min-width:0;
+      padding:9px 7px 8px;
+      border-bottom:1px solid var(--line);
+      border-right:1px solid var(--line);
+      background:var(--cream);
+    }
+    .mobile-category:nth-child(even){ border-right:0; }
+    .mobile-category-name{
+      font-size:.73rem;
+      line-height:1.05;
+      font-weight:700;
+      text-transform:uppercase;
+      margin-bottom:6px;
+      min-height:25px;
+    }
+    .mobile-scores{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:3px;
+    }
+    .mobile-score{
+      text-align:center;
+      font-size:.75rem;
+      font-weight:600;
+      min-height:27px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:3px;
+    }
+    .mobile-score-empty{ color:#b6a582; }
+    .mobile-score-current{
+      background:rgba(198,161,91,.18);
+      border:1px dashed var(--brass);
+      cursor:pointer;
+    }
+    .mobile-score-current:hover{ background:var(--brass); }
+    .mobile-section{
+      grid-column:1 / -1;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      background:rgba(74,47,32,.08);
+      font-weight:700;
+      padding:8px 7px;
+      font-size:.76rem;
+    }
+    .mobile-section-label{ grid-column:1; }
+    .mobile-section-values{
+      grid-column:2;
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      text-align:center;
+    }
+    .mobile-total{
+      grid-column:1 / -1;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      background:var(--wood);
+      color:var(--cream);
+      font-weight:700;
+      padding:10px 7px;
+      font-size:.85rem;
+    }
+    .mobile-total-values{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      text-align:center;
+    }
+  }
+
+  .score-fixed{ font-weight:600; }
+  .score-empty{ color:#b6a582; }
+  .score-preview{
+    background:none; border:1px dashed var(--brass); border-radius:4px;
+    color:var(--wood); font-weight:600; padding:4px 8px; cursor:pointer;
+    font-variant-numeric:tabular-nums; font-size:0.86rem;
+    transition:background 0.12s ease, color 0.12s ease;
+  }
+  .score-preview:hover{ background:var(--brass); color:var(--ink); }
+
+  #winner-banner{
+    display:none; margin-bottom:22px; text-align:center;
+    background:var(--wood); border:1px solid var(--brass); border-radius:8px;
+    padding:26px 20px;
+  }
+  #winner-banner.show{ display:block; }
+  #winner-banner .win-title{ font-size:1.7rem; color:var(--brass-bright); margin-bottom:6px; }
+  #winner-banner .win-sub{ color:var(--cream-dim); font-size:0.9rem; }
+
+  @media (max-width: 720px){
+    .dice-panel{ flex-direction:column; align-items:stretch; }
+    .dice-tray{ grid-template-columns:repeat(5, minmax(0,1fr)); justify-content:center; margin:0 auto; }
+    .dice-controls{ min-width:0; }
+    header .title{ font-size:2rem; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div>
+      <div class="title">Yahtzee</div>
+      <div class="subtitle">three players, one scorecard</div>
+    </div>
+    <button id="new-game-btn" onclick="newGame()">New game</button>
+  </header>
+
+  <div id="winner-banner">
+    <div class="win-title" id="winner-title"></div>
+    <div class="win-sub" id="winner-sub"></div>
+  </div>
+
+  <main>
+    <section class="dice-panel">
+      <div class="dice-info">
+        <div class="turn-indicator" id="turn-indicator">Player 1's turn</div>
+        <div class="turn-hint" id="turn-hint">Roll to begin. Click a die to hold it between rolls.</div>
+      </div>
+      <div class="dice-tray" id="dice-tray"></div>
+      <div class="dice-controls">
+        <div class="controls-top-row">
+          <div class="rolls-left" id="rolls-left">Rolls left: <strong>3</strong></div>
+          <button class="sound-toggle" id="sound-toggle" onclick="toggleSound()" aria-label="Mute sound">🔊</button>
+        </div>
+        <button id="roll-btn" onclick="rollDice()">Roll dice</button>
+        <div class="score-prompt" id="score-prompt">No rolls left — choose a category on the scorecard to end your turn.</div>
+      </div>
+    </section>
+
+    <section class="scorecard-wrap">
+      <div class="mobile-scorecard">
+        <div class="mobile-player-head">
+          <input id="m-name-0" value="Player 1" onchange="renamePlayer(0,this.value)">
+          <input id="m-name-1" value="Player 2" onchange="renamePlayer(1,this.value)">
+          <input id="m-name-2" value="Player 3" onchange="renamePlayer(2,this.value)">
+        </div>
+        <div id="mobile-score-body"></div>
+      </div>
+
+      <table class="desktop-scorecard">
+        <thead>
+          <tr>
+            <th class="cat-col">Category</th>
+            <th id="th-0"><input id="name-0" value="Player 1" onchange="renamePlayer(0,this.value)"></th>
+            <th id="th-1"><input id="name-1" value="Player 2" onchange="renamePlayer(1,this.value)"></th>
+            <th id="th-2"><input id="name-2" value="Player 3" onchange="renamePlayer(2,this.value)"></th>
+          </tr>
+        </thead>
+        <tbody id="score-body"></tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+<script>
+const CATEGORIES = [
+  {key:'ones', label:'Ones', section:'upper'},
+  {key:'twos', label:'Twos', section:'upper'},
+  {key:'threes', label:'Threes', section:'upper'},
+  {key:'fours', label:'Fours', section:'upper'},
+  {key:'fives', label:'Fives', section:'upper'},
+  {key:'sixes', label:'Sixes', section:'upper'},
+  {key:'threeKind', label:'Three of a Kind', caption:'sum of all dice', section:'lower'},
+  {key:'fourKind', label:'Four of a Kind', caption:'sum of all dice', section:'lower'},
+  {key:'fullHouse', label:'Full House', caption:'3 of a kind + a pair · scores 25', section:'lower'},
+  {key:'smallStraight', label:'Small Straight', caption:'4 in a row · scores 30', section:'lower'},
+  {key:'largeStraight', label:'Large Straight', caption:'5 in a row · scores 40', section:'lower'},
+  {key:'yahtzee', label:'Yahtzee', caption:'all five match · scores 50', section:'lower'},
+  {key:'chance', label:'Chance', caption:'sum of all dice', section:'lower'},
+];
+
+const PIP_POS = {
+  1: [[50,50]],
+  2: [[26,26],[74,74]],
+  3: [[26,26],[50,50],[74,74]],
+  4: [[26,26],[74,26],[26,74],[74,74]],
+  5: [[26,26],[74,26],[50,50],[26,74],[74,74]],
+  6: [[26,26],[74,26],[26,50],[74,50],[26,74],[74,74]],
+};
+
+function dieSVG(value){
+  const pips = PIP_POS[value] || PIP_POS[1];
+  const circles = pips.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="7.5"></circle>`).join('');
+  return `<svg viewBox="0 0 100 100">${circles}</svg>`;
+}
+
+function freshPlayer(name){
+  const scores = {};
+  CATEGORIES.forEach(c => scores[c.key] = null);
+  return { name, scores, yahtzeeBonus: 0 };
+}
+
+let state;
+let soundOn = true;
+let audioCtx = null;
+
+function getAudioCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function toggleSound(){
+  soundOn = !soundOn;
+  document.getElementById('sound-toggle').textContent = soundOn ? '🔊' : '🔇';
+  document.getElementById('sound-toggle').setAttribute('aria-label', soundOn ? 'Mute sound' : 'Unmute sound');
+}
+
+// One short decaying burst of filtered noise = one "clack" of a die.
+function playClack(ctx, time){
+  const dur = 0.045;
+  const bufferSize = Math.floor(ctx.sampleRate * dur);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++){
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 900 + Math.random() * 900;
+  filter.Q.value = 1.1;
+  const gain = ctx.createGain();
+  const peak = 0.35 + Math.random() * 0.25;
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(peak, time + 0.003);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  noise.connect(filter).connect(gain).connect(ctx.destination);
+  noise.start(time);
+  noise.stop(time + dur + 0.01);
+}
+
+// A cluster of clacks with decreasing spacing, like dice settling in a cup.
+function playDiceSound(){
+  if (!soundOn) return;
+  try{
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+    const hits = 9;
+    let t = 0;
+    for (let i = 0; i < hits; i++){
+      playClack(ctx, now + t);
+      t += 0.045 + (i / hits) * 0.03 + Math.random() * 0.015;
+    }
+  } catch(e){ /* audio not available; fail silently */ }
+}
+
+function newGame(){
+  const names = [0,1,2].map(i => document.getElementById('name-'+i).value || ('Player '+(i+1)));
+  state = {
+    players: names.map(freshPlayer),
+    currentPlayer: 0,
+    dice: [1,2,3,4,5],
+    held: [false,false,false,false,false],
+    rollsLeft: 3,
+    turnStarted: false,
+    gameOver: false,
+  };
+  document.getElementById('winner-banner').classList.remove('show');
+  render();
+}
+
+function counts(dice){
+  const c = {1:0,2:0,3:0,4:0,5:0,6:0};
+  dice.forEach(d => c[d]++);
+  return c;
+}
+function sumOf(dice, n){ return dice.filter(d => d===n).reduce((a,b)=>a+b,0); }
+function sumAll(dice){ return dice.reduce((a,b)=>a+b,0); }
+function isNOfKind(dice, n){ const c = counts(dice); return Object.values(c).some(v => v>=n); }
+function isYahtzeeRoll(dice){ const c = counts(dice); return Object.values(c).some(v => v===5); }
+
+function scoreForCategory(key, dice, player){
+  const c = counts(dice);
+  const jokerActive = isYahtzeeRoll(dice) && player.scores.yahtzee === 50;
+  switch(key){
+    case 'ones': return sumOf(dice,1);
+    case 'twos': return sumOf(dice,2);
+    case 'threes': return sumOf(dice,3);
+    case 'fours': return sumOf(dice,4);
+    case 'fives': return sumOf(dice,5);
+    case 'sixes': return sumOf(dice,6);
+    case 'threeKind': return isNOfKind(dice,3) ? sumAll(dice) : 0;
+    case 'fourKind': return isNOfKind(dice,4) ? sumAll(dice) : 0;
+    case 'fullHouse': {
+      const vals = Object.values(c).filter(v => v>0);
+      const standard = vals.length===2 && vals.includes(3) && vals.includes(2);
+      return (standard || jokerActive) ? 25 : 0;
+    }
+    case 'smallStraight': {
+      const uniq = new Set(dice);
+      const runs = [[1,2,3,4],[2,3,4,5],[3,4,5,6]];
+      const has = runs.some(r => r.every(n => uniq.has(n)));
+      return (has || jokerActive) ? 30 : 0;
+    }
+    case 'largeStraight': {
+      const uniq = new Set(dice);
+      const runs = [[1,2,3,4,5],[2,3,4,5,6]];
+      const has = runs.some(r => r.every(n => uniq.has(n)));
+      return (has || jokerActive) ? 40 : 0;
+    }
+    case 'yahtzee': return isYahtzeeRoll(dice) ? 50 : 0;
+    case 'chance': return sumAll(dice);
+    default: return 0;
+  }
+}
+
+let rolling = false;
+
+function rollDice(){
+  if (state.gameOver || state.rollsLeft <= 0 || rolling) return;
+  rolling = true;
+  document.getElementById('roll-btn').disabled = true;
+  playDiceSound();
+
+  const finalValues = state.dice.map((d,i) => state.held[i] ? d : (1 + Math.floor(Math.random()*6)));
+  const tray = document.getElementById('dice-tray');
+  const dieEls = Array.from(tray.children);
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  dieEls.forEach((el,i) => {
+    if (!state.held[i]) el.classList.add('rolling');
+  });
+
+  const finish = () => {
+    state.dice = finalValues;
+    state.rollsLeft--;
+    state.turnStarted = true;
+    rolling = false;
+    render();
+  };
+
+  if (reduceMotion){
+    finish();
+    return;
+  }
+
+  const totalDuration = 500;
+  const flipStep = 80;
+  let elapsed = 0;
+  const flip = () => {
+    elapsed += flipStep;
+    const done = elapsed >= totalDuration;
+    dieEls.forEach((el,i) => {
+      if (state.held[i]) return;
+      const val = done ? finalValues[i] : (1 + Math.floor(Math.random()*6));
+      el.innerHTML = dieSVG(val);
+    });
+    if (!done){
+      setTimeout(flip, flipStep);
+    } else {
+      finish();
+    }
+  };
+  flip();
+}
+
+function toggleHold(i){
+  if (!state.turnStarted || state.gameOver) return;
+  state.held[i] = !state.held[i];
+  render();
+}
+
+function renamePlayer(i, value){
+  if (!state) return;
+  state.players[i].name = value || ('Player '+(i+1));
+  const mobileInput = document.getElementById('m-name-'+i);
+  if (mobileInput && document.activeElement !== mobileInput) mobileInput.value = state.players[i].name;
+  render();
+}
+
+function selectCategory(key){
+  const player = state.players[state.currentPlayer];
+  if (!state.turnStarted || player.scores[key] !== null || state.gameOver) return;
+  const score = scoreForCategory(key, state.dice, player);
+  const bonusEarned = isYahtzeeRoll(state.dice) && player.scores.yahtzee === 50;
+  player.scores[key] = score;
+  if (bonusEarned) player.yahtzeeBonus += 100;
+
+  const allDone = state.players.every(p => CATEGORIES.every(c => p.scores[c.key] !== null));
+  if (allDone){
+    state.gameOver = true;
+    showWinner();
+  } else {
+    state.currentPlayer = (state.currentPlayer + 1) % state.players.length;
+    state.dice = [1,2,3,4,5];
+    state.held = [false,false,false,false,false];
+    state.rollsLeft = 3;
+    state.turnStarted = false;
+  }
+  render();
+}
+
+function totals(player){
+  const upperKeys = CATEGORIES.filter(c => c.section==='upper').map(c=>c.key);
+  const lowerKeys = CATEGORIES.filter(c => c.section==='lower').map(c=>c.key);
+  const upperSum = upperKeys.reduce((a,k) => a + (player.scores[k] || 0), 0);
+  const upperBonus = upperSum >= 63 ? 35 : 0;
+  const lowerSum = lowerKeys.reduce((a,k) => a + (player.scores[k] || 0), 0);
+  const grand = upperSum + upperBonus + lowerSum + player.yahtzeeBonus;
+  return { upperSum, upperBonus, lowerSum, grand };
+}
+
+function showWinner(){
+  const results = state.players.map(p => ({ name:p.name, grand: totals(p).grand }));
+  results.sort((a,b) => b.grand - a.grand);
+  const banner = document.getElementById('winner-banner');
+  const isTie = results[0].grand === results[1].grand;
+  document.getElementById('winner-title').textContent = isTie
+    ? `It's a tie at ${results[0].grand} points!`
+    : `${results[0].name} wins with ${results[0].grand} points!`;
+  document.getElementById('winner-sub').textContent =
+    results.map(r => `${r.name}: ${r.grand}`).join('   ·   ');
+  banner.classList.add('show');
+}
+
+
+function renderMobileScorecard(){
+  const body = document.getElementById('mobile-score-body');
+  if (!body) return;
+
+  const grid = document.createElement('div');
+  grid.className = 'mobile-category-grid';
+
+  const pairs = [
+    ['ones','threeKind'],
+    ['twos','fourKind'],
+    ['threes','fullHouse'],
+    ['fours','smallStraight'],
+    ['fives','largeStraight'],
+    ['sixes','yahtzee'],
+  ];
+
+  const makeCategory = (key) => {
+    const cat = CATEGORIES.find(c => c.key === key);
+    const box = document.createElement('div');
+    box.className = 'mobile-category';
+
+    const name = document.createElement('div');
+    name.className = 'mobile-category-name';
+    name.textContent = cat.label;
+    box.appendChild(name);
+
+    const scores = document.createElement('div');
+    scores.className = 'mobile-scores';
+
+    state.players.forEach((player, pi) => {
+      const score = document.createElement('div');
+      const val = player.scores[key];
+
+      if (val !== null) {
+        score.className = 'mobile-score';
+        score.textContent = val;
+      } else if (pi === state.currentPlayer && state.turnStarted && !state.gameOver) {
+        score.className = 'mobile-score mobile-score-current';
+        score.textContent = scoreForCategory(key, state.dice, player);
+        score.onclick = () => selectCategory(key);
+        score.title = 'Tap to score';
+      } else {
+        score.className = 'mobile-score mobile-score-empty';
+        score.textContent = '—';
+      }
+      scores.appendChild(score);
+    });
+
+    box.appendChild(scores);
+    return box;
+  };
+
+  pairs.forEach(([left,right]) => {
+    grid.appendChild(makeCategory(left));
+    grid.appendChild(makeCategory(right));
+  });
+
+  // Chance fills the final left cell, with the upper total on the right.
+  grid.appendChild(makeCategory('chance'));
+
+  const upper = document.createElement('div');
+  upper.className = 'mobile-section';
+  const upperLabel = document.createElement('div');
+  upperLabel.className = 'mobile-section-label';
+  upperLabel.textContent = 'UPPER TOTAL';
+  const upperValues = document.createElement('div');
+  upperValues.className = 'mobile-section-values';
+
+  state.players.forEach(p => {
+    const t = totals(p);
+    const v = document.createElement('div');
+    v.textContent = t.upperSum + t.upperBonus;
+    upperValues.appendChild(v);
+  });
+  upper.appendChild(upperLabel);
+  upper.appendChild(upperValues);
+  grid.appendChild(upper);
+
+  const lowerTotal = document.createElement('div');
+  lowerTotal.className = 'mobile-total';
+  const totalLabel = document.createElement('div');
+  totalLabel.textContent = 'TOTAL';
+  const totalValues = document.createElement('div');
+  totalValues.className = 'mobile-total-values';
+
+  state.players.forEach(p => {
+    const v = document.createElement('div');
+    v.textContent = totals(p).grand;
+    totalValues.appendChild(v);
+  });
+
+  lowerTotal.appendChild(totalLabel);
+  lowerTotal.appendChild(totalValues);
+  grid.appendChild(lowerTotal);
+
+  body.innerHTML = '';
+  body.appendChild(grid);
+
+  for (let i=0;i<3;i++){
+    const input = document.getElementById('m-name-'+i);
+    if (input && document.activeElement !== input) input.value = state.players[i].name;
+  }
+}
+
+function render(){
+  document.getElementById('turn-indicator').textContent =
+    state.gameOver ? 'Game over' : `${state.players[state.currentPlayer].name}'s turn`;
+
+  const hint = document.getElementById('turn-hint');
+  if (state.gameOver){
+    hint.textContent = 'Start a new game to play again.';
+  } else if (!state.turnStarted){
+    hint.textContent = 'Roll to begin. Click a die to hold it between rolls.';
+  } else {
+    hint.textContent = 'Click a die to hold it, then reroll the rest.';
+  }
+
+  const tray = document.getElementById('dice-tray');
+  tray.innerHTML = '';
+  state.dice.forEach((val, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'die' + (state.turnStarted && !state.gameOver ? ' active' : '') + (state.held[i] ? ' held' : '');
+    btn.innerHTML = dieSVG(val);
+    btn.setAttribute('aria-label', `Die ${i+1}, showing ${val}${state.held[i] ? ', held' : ''}`);
+    btn.onclick = () => toggleHold(i);
+    tray.appendChild(btn);
+  });
+
+  document.getElementById('rolls-left').innerHTML = `Rolls left: <strong>${state.rollsLeft}</strong>`;
+  const rollBtn = document.getElementById('roll-btn');
+  rollBtn.disabled = state.gameOver || state.rollsLeft <= 0;
+  rollBtn.textContent = state.turnStarted ? 'Roll again' : 'Roll dice';
+  document.getElementById('score-prompt').classList.toggle('show', state.turnStarted && state.rollsLeft === 0 && !state.gameOver);
+
+  for (let i=0;i<3;i++){
+    const th = document.getElementById('th-'+i);
+    th.classList.toggle('active-player', i === state.currentPlayer && !state.gameOver);
+    const input = document.getElementById('name-'+i);
+    if (document.activeElement !== input) input.value = state.players[i].name;
+  }
+
+  const body = document.getElementById('score-body');
+  body.innerHTML = '';
+
+  CATEGORIES.forEach(cat => {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.innerHTML = cat.label + (cat.caption ? `<span class="cap">${cat.caption}</span>` : '');
+    tr.appendChild(th);
+
+    state.players.forEach((player, pi) => {
+      const td = document.createElement('td');
+      const val = player.scores[cat.key];
+      if (val !== null){
+        td.className = 'score-fixed';
+        td.textContent = val;
+      } else if (pi === state.currentPlayer && state.turnStarted && !state.gameOver){
+        const b = document.createElement('button');
+        b.className = 'score-preview';
+        b.textContent = scoreForCategory(cat.key, state.dice, player);
+        b.onclick = () => selectCategory(cat.key);
+        td.appendChild(b);
+      } else {
+        td.className = 'score-empty';
+        td.textContent = '—';
+      }
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+
+    if (cat.key === 'sixes'){
+      const subTr = document.createElement('tr');
+      subTr.className = 'section-sub';
+      const subTh = document.createElement('th');
+      subTh.innerHTML = 'Upper total<span class="cap">+35 bonus if 63 or more</span>';
+      subTr.appendChild(subTh);
+      state.players.forEach(p => {
+        const t = totals(p);
+        const td = document.createElement('td');
+        td.textContent = `${t.upperSum + t.upperBonus}`;
+        subTr.appendChild(td);
+      });
+      body.appendChild(subTr);
+    }
+  });
+
+  const anyBonus = state.players.some(p => p.yahtzeeBonus > 0);
+  if (anyBonus){
+    const tr = document.createElement('tr');
+    tr.className = 'section-sub';
+    const th = document.createElement('th');
+    th.innerHTML = 'Yahtzee bonus<span class="cap">100 per extra Yahtzee</span>';
+    tr.appendChild(th);
+    state.players.forEach(p => {
+      const td = document.createElement('td');
+      td.textContent = p.yahtzeeBonus;
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  }
+
+  const gTr = document.createElement('tr');
+  gTr.className = 'grand-total';
+  const gTh = document.createElement('th');
+  gTh.textContent = 'Total';
+  gTr.appendChild(gTh);
+  state.players.forEach(p => {
+    const t = totals(p);
+    const td = document.createElement('td');
+    td.textContent = t.grand;
+    gTr.appendChild(td);
+  });
+  body.appendChild(gTr);
+
+  renderMobileScorecard();
+}
+
+newGame();
+</script>
+</body>
+</html>
