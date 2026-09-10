@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Yahtzee — 3 Players</title>
+<title>Yahtzee — 2 to 4 Players</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -313,6 +313,70 @@
     }
   }
 
+
+  /* ---- Device-friendly layout ---- */
+  .game-options{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .game-options label{
+    color:var(--cream-dim);
+    font-size:.8rem;
+  }
+  #player-count{
+    appearance:none;
+    background:var(--wood);
+    color:var(--cream);
+    border:1px solid rgba(241,231,204,.35);
+    border-radius:4px;
+    padding:9px 28px 9px 10px;
+    font:600 .85rem 'IBM Plex Sans', sans-serif;
+    cursor:pointer;
+  }
+  #player-count:focus{
+    outline:2px solid var(--brass-bright);
+    outline-offset:1px;
+  }
+  .scorecard-wrap{
+    width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .desktop-scorecard{
+    min-width:520px;
+  }
+  .desktop-scorecard thead th:not(.cat-col){
+    min-width:95px;
+  }
+  @media (max-width:720px){
+    .game-options{
+      width:100%;
+      justify-content:flex-start;
+    }
+    .game-options label{ margin-left:0; }
+    #player-count{ flex:0 0 auto; }
+    #new-game-btn{ flex:0 0 auto; }
+
+    .scorecard-wrap{
+      border-radius:7px;
+    }
+    .mobile-player-head{
+      width:100%;
+    }
+    .mobile-player-head input{
+      font-size:clamp(.68rem, 2.8vw, .82rem);
+    }
+    .mobile-category-name{
+      font-size:clamp(.65rem, 2.7vw, .78rem);
+    }
+  }
+  @media (min-width:721px) and (max-width:1000px){
+    body{ padding-left:14px; padding-right:14px; }
+    .dice-panel{ padding:16px; }
+  }
+
   .score-fixed{ font-weight:600; }
   .score-empty{ color:#b6a582; }
   .score-preview{
@@ -345,9 +409,17 @@
   <header>
     <div>
       <div class="title">Yahtzee</div>
-      <div class="subtitle">three players, one scorecard</div>
+      <div class="subtitle" id="game-subtitle">2–4 players, one scorecard</div>
     </div>
-    <button id="new-game-btn" onclick="newGame()">New game</button>
+    <div class="game-options">
+      <label for="player-count">Players</label>
+      <select id="player-count" onchange="changePlayerCount(this.value)" aria-label="Number of players">
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+      </select>
+      <button id="new-game-btn" onclick="newGame()">New game</button>
+    </div>
   </header>
 
   <div id="winner-banner">
@@ -374,21 +446,14 @@
 
     <section class="scorecard-wrap">
       <div class="mobile-scorecard">
-        <div class="mobile-player-head">
-          <input id="m-name-0" value="Player 1" onchange="renamePlayer(0,this.value)">
-          <input id="m-name-1" value="Player 2" onchange="renamePlayer(1,this.value)">
-          <input id="m-name-2" value="Player 3" onchange="renamePlayer(2,this.value)">
-        </div>
+        <div class="mobile-player-head" id="mobile-player-head"></div>
         <div id="mobile-score-body"></div>
       </div>
 
       <table class="desktop-scorecard">
         <thead>
-          <tr>
+          <tr id="desktop-player-head">
             <th class="cat-col">Category</th>
-            <th id="th-0"><input id="name-0" value="Player 1" onchange="renamePlayer(0,this.value)"></th>
-            <th id="th-1"><input id="name-1" value="Player 2" onchange="renamePlayer(1,this.value)"></th>
-            <th id="th-2"><input id="name-2" value="Player 3" onchange="renamePlayer(2,this.value)"></th>
           </tr>
         </thead>
         <tbody id="score-body"></tbody>
@@ -492,9 +557,12 @@ function playDiceSound(){
 }
 
 function newGame(){
-  const names = [0,1,2].map(i => document.getElementById('name-'+i).value || ('Player '+(i+1)));
+  const countSelect = document.getElementById('player-count');
+  const count = Math.min(4, Math.max(2, parseInt(countSelect.value, 10) || 3));
+  const previousNames = state?.players?.map(p => p.name) || [];
+
   state = {
-    players: names.map(freshPlayer),
+    players: Array.from({length: count}, (_, i) => freshPlayer(previousNames[i] || ('Player ' + (i + 1)))),
     currentPlayer: 0,
     dice: [1,2,3,4,5],
     held: [false,false,false,false,false],
@@ -502,8 +570,17 @@ function newGame(){
     turnStarted: false,
     gameOver: false,
   };
+
   document.getElementById('winner-banner').classList.remove('show');
+  document.getElementById('game-subtitle').textContent =
+    `${count} ${count === 1 ? 'player' : 'players'}, one scorecard`;
   render();
+}
+
+function changePlayerCount(value){
+  const count = Math.min(4, Math.max(2, parseInt(value, 10) || 3));
+  document.getElementById('player-count').value = String(count);
+  newGame();
 }
 
 function counts(dice){
@@ -608,10 +685,8 @@ function toggleHold(i){
 }
 
 function renamePlayer(i, value){
-  if (!state) return;
-  state.players[i].name = value || ('Player '+(i+1));
-  const mobileInput = document.getElementById('m-name-'+i);
-  if (mobileInput && document.activeElement !== mobileInput) mobileInput.value = state.players[i].name;
+  if (!state || !state.players[i]) return;
+  state.players[i].name = (value || ('Player ' + (i + 1))).trim().slice(0,18) || ('Player ' + (i + 1));
   render();
 }
 
@@ -661,6 +736,36 @@ function showWinner(){
 }
 
 
+function buildPlayerHeaders(){
+  const desktopHead = document.getElementById('desktop-player-head');
+  const mobileHead = document.getElementById('mobile-player-head');
+
+  desktopHead.innerHTML = '<th class="cat-col">Category</th>';
+  mobileHead.innerHTML = '';
+
+  state.players.forEach((player, i) => {
+    const th = document.createElement('th');
+    th.id = 'th-' + i;
+    th.className = i === state.currentPlayer && !state.gameOver ? 'active-player' : '';
+
+    const input = document.createElement('input');
+    input.id = 'name-' + i;
+    input.value = player.name;
+    input.maxLength = 18;
+    input.setAttribute('aria-label', 'Player ' + (i + 1) + ' name');
+    input.onchange = () => renamePlayer(i, input.value);
+    th.appendChild(input);
+    desktopHead.appendChild(th);
+
+    const mobileInput = document.createElement('input');
+    mobileInput.id = 'm-name-' + i;
+    mobileInput.value = player.name;
+    mobileInput.maxLength = 18;
+    mobileInput.onchange = () => renamePlayer(i, mobileInput.value);
+    mobileHead.appendChild(mobileInput);
+  });
+}
+
 function renderMobileScorecard(){
   const body = document.getElementById('mobile-score-body');
   if (!body) return;
@@ -689,6 +794,7 @@ function renderMobileScorecard(){
 
     const scores = document.createElement('div');
     scores.className = 'mobile-scores';
+    scores.style.gridTemplateColumns = `repeat(${state.players.length}, minmax(0, 1fr))`;
 
     state.players.forEach((player, pi) => {
       const score = document.createElement('div');
@@ -718,7 +824,6 @@ function renderMobileScorecard(){
     grid.appendChild(makeCategory(right));
   });
 
-  // Chance fills the final left cell, with the upper total on the right.
   grid.appendChild(makeCategory('chance'));
 
   const upper = document.createElement('div');
@@ -728,6 +833,7 @@ function renderMobileScorecard(){
   upperLabel.textContent = 'UPPER TOTAL';
   const upperValues = document.createElement('div');
   upperValues.className = 'mobile-section-values';
+  upperValues.style.gridTemplateColumns = `repeat(${state.players.length}, minmax(0, 1fr))`;
 
   state.players.forEach(p => {
     const t = totals(p);
@@ -745,6 +851,7 @@ function renderMobileScorecard(){
   totalLabel.textContent = 'TOTAL';
   const totalValues = document.createElement('div');
   totalValues.className = 'mobile-total-values';
+  totalValues.style.gridTemplateColumns = `repeat(${state.players.length}, minmax(0, 1fr))`;
 
   state.players.forEach(p => {
     const v = document.createElement('div');
@@ -758,11 +865,6 @@ function renderMobileScorecard(){
 
   body.innerHTML = '';
   body.appendChild(grid);
-
-  for (let i=0;i<3;i++){
-    const input = document.getElementById('m-name-'+i);
-    if (input && document.activeElement !== input) input.value = state.players[i].name;
-  }
 }
 
 function render(){
@@ -795,12 +897,7 @@ function render(){
   rollBtn.textContent = state.turnStarted ? 'Roll again' : 'Roll dice';
   document.getElementById('score-prompt').classList.toggle('show', state.turnStarted && state.rollsLeft === 0 && !state.gameOver);
 
-  for (let i=0;i<3;i++){
-    const th = document.getElementById('th-'+i);
-    th.classList.toggle('active-player', i === state.currentPlayer && !state.gameOver);
-    const input = document.getElementById('name-'+i);
-    if (document.activeElement !== input) input.value = state.players[i].name;
-  }
+  buildPlayerHeaders();
 
   const body = document.getElementById('score-body');
   body.innerHTML = '';
